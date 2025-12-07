@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ room.room_name }} - 守护天使</title>
+    <style>
+        /* 全局基础样式 */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 650px;
+            margin: 40px auto;
+            padding: 30px;
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            background-color: #ffffff;
+        }
+        h1, h2 {
+            color: #4CAF50;
+            border-bottom: 2px solid #e9e9e9;
+            padding-bottom: 10px;
+            margin-top: 25px;
+        }
+        hr { border: 0; height: 1px; background: #eee; margin: 25px 0; }
+        input[type="text"], input[type="password"] {
+            padding: 12px;
+            margin: 8px 0;
+            width: 100%;
+            box-sizing: border-box;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+        }
+        button {
+            padding: 12px;
+            margin-top: 15px;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            width: 100%;
+            font-size: 1.05em;
+            transition: background-color 0.3s;
+        }
+        button:hover:not(:disabled) { background-color: #0056b3; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+
+        /* 消息样式 */
+        .success, .danger, .warning, .info {
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+        .success { color: #155724; background-color: #d4edda; border: 1px solid #c3e6cb; }
+        .danger { color: #721c24; background-color: #f8d7da; border: 1px solid #f5c6cb; }
+        .warning, .info { color: #856404; background-color: #fff3cd; border: 1px solid #ffeeba; }
+
+        /* 1. 已登记名单横向排列样式 */
+        .list-container {
+            max-height: 120px;
+            overflow-y: auto;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border-radius: 6px;
+            border: 1px solid #eee;
+        }
+        .list-container ul {
+            list-style: none;
+            padding: 0;
+            display: flex; /* 启用 Flexbox */
+            flex-wrap: wrap; /* 允许换行 */
+            gap: 10px; /* 元素间距 */
+        }
+        .list-container li {
+            background-color: #ffffff;
+            color: #333;
+            padding: 5px 10px;
+            border: 1px solid #d4d4d4;
+            border-radius: 4px;
+            font-size: 0.9em;
+            flex-grow: 0; /* 不伸展 */
+        }
+
+        /* 2. 匹配结果样式：更显眼 */
+        .success strong {
+            font-size: 1.5em; /* 增大字体 */
+            color: #ff5722; /* 醒目的橙红色 */
+            background-color: #fff9c4; /* 浅黄色背景 */
+            padding: 2px 8px;
+            border-radius: 4px;
+            display: inline-block;
+            margin-left: 5px;
+            font-weight: 900; /* 更粗的字重 */
+        }
+
+        /* 状态指示 */
+        .status-open { color: #FFC107; }
+        .status-matched { color: #4CAF50; }
+    </style>
+    <script>
+        // 定义 Local Storage 的键名，包含 Room ID 以实现隔离
+        function getLocalStorageKey(roomId) {
+            return `angel_registered_room_${roomId}`;
+        }
+
+        // 页面加载时执行的逻辑
+        document.addEventListener('DOMContentLoaded', function() {
+            const roomId = '{{ room.room_id }}';
+            const registerFormDiv = document.getElementById('register-form-container');
+            const urlParams = new URLSearchParams(window.location.search);
+            const registeredName = urlParams.get('registered_name');
+            const registeredKey = getLocalStorageKey(roomId);
+
+            // 1. 检查是否刚刚登记成功 (通过 URL 参数)
+            if (registeredName) {
+                localStorage.setItem(registeredKey, 'true');
+                history.replaceState(null, '', location.pathname + location.search.replace(/&registered_name=[^&]*/, ''));
+            }
+
+            // 2. 检查 Local Storage 中是否有标记
+            const isRegistered = localStorage.getItem(registeredKey) === 'true';
+
+            // 3. 根据标记隐藏/显示表单
+            if (isRegistered) {
+                registerFormDiv.innerHTML = '<h3 style="color: #4CAF50;">✅ 您已成功登记！</h3><p>请在下方查询您的守护对象。</p>';
+            }
+        });
+    </script>
+</head>
+<body>
+    <h1>👼 守护天使房间: {{ room.room_name }}</h1>
+    <p>人数: <strong>{{ current_count }}</strong> / <strong>{{ room.target_count }}</strong></p>
+    <p class="{{ 'status-matched' if room.status == 'MATCHED' else 'status-open' }}">
+        当前状态: <strong>{{ '✅ 已完成匹配' if room.status == 'MATCHED' else '⏳ 登记中' }}</strong>
+    </p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <p class="{{ category }}">{{ message | safe }}</p>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <hr>
+
+    <div id="register-form-container">
+        <h2>🖊️ 登记你的名字</h2>
+        {% if room.status == 'OPEN' and current_count < room.target_count %}
+            <form method="POST">
+                <input type="hidden" name="action" value="register">
+                <label for="name">你的名字 (必须唯一):</label>
+                <input type="text" id="name" name="name" required><br>
+
+                <label for="secret_code">设置查询码 (用于查询结果，请务必记住!):</label>
+                <input type="password" id="secret_code" name="secret_code" required><br>
+
+                <button type="submit">确认登记并加入</button>
+                <p style="text-align: center; font-size: 0.9em; color: gray;">
+                    当人数达到 {{ room.target_count }} 时，系统将自动匹配。
+                </p>
+            </form>
+        {% else %}
+            <p style="color: red;">房间已满或匹配已完成，无法再登记新玩家。</p>
+        {% endif %}
+    </div>
+
+    <hr>
+
+    <h2>👥 已登记名单 ({{ current_count }} 人)</h2>
+    <div class="list-container">
+        <ul>
+            {% for name in participants_names %}
+                <li>{{ name }}</li>
+            {% endfor %}
+            {% if not participants_names %}
+                <p style="color: gray;">暂无登记玩家。</p>
+            {% endif %}
+        </ul>
+    </div>
+
+    <hr>
+
+    <h2>🔍 查询你的守护对象</h2>
+    <form method="POST">
+        <input type="hidden" name="action" value="query">
+        <label for="query_name">你的名字:</label>
+        <input type="text" id="query_name" name="query_name" required><br>
+
+        <label for="query_code">你的查询码:</label>
+        <input type="password" id="query_code" name="query_code" required><br>
+
+        <button type="submit" {% if room.status != 'MATCHED' %} disabled {% endif %}>
+            查询我的守护对象
+        </button>
+        {% if room.status != 'MATCHED' %}
+            <p style="text-align: center; color: gray; font-size: 0.9em;">匹配完成（状态变为“已完成匹配”）后才能查询。</p>
+        {% endif %}
+    </form>
+</body>
+</html>

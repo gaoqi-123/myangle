@@ -1,0 +1,8 @@
+# Python environment and cache files
+venv/
+__pycache__/
+*.pyc
+*.sqlite3
+
+# Flask/SQLite database file
+database.db
